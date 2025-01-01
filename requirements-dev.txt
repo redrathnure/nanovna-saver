@@ -3,6 +3,8 @@ pylint
 pytest
 pytest-cov
 tox
+# for pyenv integration
+tox-pyenv-redux
 black
 # TODO do we need it here? Is it in use?
 flake8
