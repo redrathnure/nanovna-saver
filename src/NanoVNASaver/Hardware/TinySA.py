@@ -33,7 +33,7 @@ class TinySA(VNA):
     name = "tinySA"
     screenwidth = 320
     screenheight = 240
-    valid_datapoints = (290,)
+    valid_datapoints = [290]
 
     def __init__(self, iface: Interface):
         super().__init__(iface)
@@ -131,7 +131,7 @@ class TinySA_Ultra(TinySA):  # noqa: N801
     name = "tinySA Ultra"
     screenwidth = 480
     screenheight = 320
-    valid_datapoints = (450, 51, 101, 145, 290)
+    valid_datapoints = [450, 51, 101, 145, 290]
 
     def __init__(self, iface: Interface):
         super().__init__(iface)
