@@ -1,0 +1,8 @@
+-r requirements.txt
+pylint
+pytest
+pytest-cov
+tox
+black
+# TODO do we need it here? Is it in use?
+flake8
