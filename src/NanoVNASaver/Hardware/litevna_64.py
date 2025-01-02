@@ -1,9 +1,10 @@
 import logging
 import platform
-from struct import pack
+from struct import pack, unpack
 from time import sleep
 
-from serial import Serial
+from PyQt6.QtGui import QImage, QPixmap
+from serial import Serial, SerialException
 
 from NanoVNASaver.Hardware.Serial import Interface
 
@@ -32,6 +33,33 @@ EXPECTED_FW_VERSION = Version.build(2, 2, 0)
 
 
 _ADDR_VBAT_MILIVOLTS = 0x5C
+_ADDR_SCREENSHOT = 0xEE
+
+
+SUPPORTED_PIXEL_FORMAT = 16
+
+
+class ScreenshotData:
+    header_size = 2 + 2 + 1
+
+    def __init__(self, width: int, height: int, pixel_size: int):
+        self.width = width
+        self.height = height
+        self.pixel_size = pixel_size
+        self.data = bytes()
+
+    def data_size(self) -> int:
+        return self.width * self.height * int(self.pixel_size / 8)
+
+    def __repr__(self) -> str:
+        return f"{self.width}x{self.height} {self.pixel_size}bits ({self.data_size()} Bytes)"
+
+    @staticmethod
+    def from_header(header_data: bytes) -> "ScreenshotData":
+        logger.debug("Screenshot header: %s", header_data)
+
+        width, height, depth = unpack("<HHB", header_data)
+        return ScreenshotData(width, height, depth)
 
 
 class LiteVNA64(NanoVNA_V2):
@@ -68,6 +96,7 @@ class LiteVNA64(NanoVNA_V2):
         # VBat state will be added dynamicly in get_features()
 
         self.features.add("Customizable data points")
+        self.features.add("Screenshots")
 
         # TODO: more than one dp per freq
         self.features.add("Multi data points")
@@ -164,3 +193,48 @@ class LiteVNA64(NanoVNA_V2):
         result = super().readValues(value)
         self._exit_usb_mode()
         return result
+
+    def getScreenshot(self) -> QPixmap:
+        logger.debug("Capturing screenshot...")
+        self.serial.timeout = 8
+        if self.connected():
+            try:
+                screenshot = self._get_screenshot()
+
+                if screenshot.pixel_size != SUPPORTED_PIXEL_FORMAT:
+                    logger.warning(
+                        "Unsupported %d screenshot pixel format!",
+                        screenshot.pixel_size,
+                    )
+                    return QPixmap()
+
+                image = QImage(
+                    screenshot.data,
+                    screenshot.width,
+                    screenshot.height,
+                    QImage.Format.Format_RGB16,
+                )
+                logger.debug("Screenshot was captured")
+                return QPixmap(image)
+            except SerialException as exc:
+                logger.exception(
+                    "Exception while capturing screenshot: %s", exc
+                )
+
+        logger.debug("Unable to get screenshot")
+        return QPixmap()
+
+    def _get_screenshot(self) -> ScreenshotData:
+        with self.serial.lock:
+            self.serial.write(pack("<BBB", _CMD_WRITE, _ADDR_SCREENSHOT, 0))
+            sleep(WRITE_SLEEP)
+
+            result = ScreenshotData.from_header(
+                self.serial.read(ScreenshotData.header_size)
+            )
+
+            logger.debug("Screenshot format: %s. Loading data...", result)
+
+            result.data = self.serial.read(result.data_size())
+
+            return result
