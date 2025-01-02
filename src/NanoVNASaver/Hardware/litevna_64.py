@@ -159,3 +159,8 @@ class LiteVNA64(NanoVNA_V2):
                 pack("<BBB", _CMD_WRITE, _ADDR_RAW_SAMPLES_MODE, 2)
             )
             sleep(WRITE_SLEEP)
+
+    def readValues(self, value) -> list[complex]:
+        result = super().readValues(value)
+        self._exit_usb_mode()
+        return result
